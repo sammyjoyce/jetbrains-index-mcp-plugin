@@ -46,6 +46,7 @@ class ConstantsUnitTest : TestCase() {
             ToolNames.REFACTOR_RENAME,
             ToolNames.REFACTOR_SAFE_DELETE,
             ToolNames.REFACTOR_MOVE,
+            ToolNames.MOVE_MEMBER,
             ToolNames.REFORMAT_CODE,
             ToolNames.OPTIMIZE_IMPORTS,
             ToolNames.CONVERT_JAVA_TO_KOTLIN,

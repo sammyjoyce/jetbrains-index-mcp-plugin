@@ -558,6 +558,7 @@ class ToolExecutionIntegrationTest : McpPlatformTestCase() {
             // Refactoring tools
             ToolNames.REFACTOR_RENAME,
             ToolNames.REFACTOR_MOVE,
+            ToolNames.MOVE_MEMBER,
             ToolNames.REFACTOR_SAFE_DELETE,
             ToolNames.REFORMAT_CODE,
             ToolNames.OPTIMIZE_IMPORTS,

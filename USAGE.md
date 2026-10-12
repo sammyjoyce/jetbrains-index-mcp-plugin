@@ -34,6 +34,7 @@ These tools work in every supported JetBrains IDE:
 | `ide_open_file` | Open file in editor with navigation | Disabled |
 | `ide_refactor_rename` | Rename symbol with reference updates (all languages) | Enabled |
 | `ide_move_file` | Move file to new directory with IDE-aware move semantics | Enabled |
+| `ide_move_member` | Move a top-level/static declaration to another file, updating references and imports (Java, Kotlin, JS/TS) | Disabled |
 | `ide_reformat_code` | Reformat code using project code style | Disabled |
 | `ide_optimize_imports` | Optimize imports without reformatting code | Disabled |
 | `ide_structural_search_replace` | Pattern-based code search and transformation (Java, Kotlin) | Disabled |
@@ -126,6 +127,7 @@ see [Claude Code Hooks](docs/claude-code-hooks.md) for ready-to-use `PreToolUse`
 - [Refactoring Tools](#refactoring-tools)
   - [ide_refactor_rename](#ide_refactor_rename)
   - [ide_move_file](#ide_move_file)
+  - [ide_move_member](#ide_move_member)
   - [ide_reformat_code](#ide_reformat_code)
   - [ide_optimize_imports](#ide_optimize_imports)
   - [ide_structural_search_replace](#ide_structural_search_replace)
@@ -201,7 +203,7 @@ Validation runs before PSI synchronization, and `target.symbolId` routes to its 
 
 ### Refactoring Preview Contract
 
-`ide_refactor_rename` and `ide_refactor_safe_delete` accept `dryRun: true`. The request follows
+`ide_refactor_rename`, `ide_refactor_safe_delete` and `ide_move_member` accept `dryRun: true`. The request follows
 normal target resolution, validation, usage discovery, and conflict discovery, but does not enter
 the refactoring/source-write phase, save documents, or create an undo command. File contents
 therefore remain byte-for-byte unchanged.
@@ -2225,6 +2227,76 @@ Move a file to a new directory using the IDE's refactoring engine. Applies langu
   "changesCount": 2,
   "message": "Successfully moved 'src/main/java/com/old/MyService.java' to 'src/main/java/com/new/services/MyService.java' using IDE file move semantics"
 }
+```
+
+---
+
+### ide_move_member
+
+Move one top-level or static declaration to another file using the IDE's own Move refactoring. Every reference and import across the project is rewritten by the language plugin, so no code is edited by hand. Disabled by default.
+
+**Supported Languages and backends:**
+
+| Language | Movable declarations | Destination | IDE backend |
+|----------|---------------------|-------------|-------------|
+| Java | `static` fields, methods and nested classes | An existing `.java` file; the member moves into its top-level class | Move Static Members (`MoveMembersProcessor`) |
+| Kotlin (K2 mode) | Top-level functions, properties, classes, objects, type aliases | A `.kt` file, created in the target directory's package if missing | Move Declarations (`K2MoveDeclarationsRefactoringProcessor`) |
+| JavaScript / TypeScript | Top-level module members (functions, classes, consts, interfaces, types) | A JS/TS file, created if missing | Move Module Members (`ES6MoveModuleMembersProcessor`) |
+
+Other languages return an error naming the language. Top-level Java classes are files: use `ide_move_file`.
+
+**Behavior:**
+- Select the declaration with `symbolId`, `language`+`symbol`, `file`+`line`+`column`, or a nested `target`.
+- The destination directory must already exist.
+- Visibility is widened only where a usage needs it (Java: escalate visibility; JS/TS: add `export`), matching the IDE dialog defaults.
+- `dryRun: true` runs the processor's usage search and conflict analysis and returns the shared refactoring preview without writing anything (it does not create the target file).
+- Apply proceeds through conflicts and reports them in `warnings`; read-only files in scope abort before any edit.
+- The result's `updatedSymbol` is a fresh `symbolId` for the moved declaration; the old handle is returned as `invalidatedSymbolId`.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `targetFile` | string | Yes | Destination file path relative to project root |
+| `symbolId` / `target` | string / object | Conditional | Exact symbol selector |
+| `file`, `line`, `column` | string, int, int | Conditional | Position of the declaration (or a reference to it) |
+| `language`, `symbol` | string | Conditional | Qualified-name selector |
+| `dryRun` | boolean | No | Preview only. Default `false` |
+| `project_path` | string | No | Project root when several projects are open |
+
+**Example Request:**
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "ide_move_member",
+    "arguments": {
+      "file": "src/util.ts",
+      "line": 1,
+      "column": 17,
+      "targetFile": "src/strings.ts"
+    }
+  }
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "success": true,
+  "affectedFiles": ["src/util.ts", "src/main.ts", "src/strings.ts"],
+  "changesCount": 3,
+  "message": "Moved 'twice' from 'src/util.ts' to 'src/strings.ts' (es6_move_module_members)",
+  "updatedSymbol": {"symbolId": "sym_…", "name": "twice", "file": "src/strings.ts", "line": 1, "column": 17}
+}
+```
+
+**Example dry-run `plannedChange`:**
+
+```json
+{"operation": "move_member", "backend": "kotlin_k2_move_declarations", "from": "src/a/Util.kt", "to": "src/b/Strings.kt", "createsFile": true}
 ```
 
 ---

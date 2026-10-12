@@ -259,7 +259,7 @@ Each JetBrains IDE has a unique default port and server name to allow running mu
 
 ## Exposed Tools
 
-The plugin provides **52 MCP tools** organized by availability. Tools marked *(disabled by default)* can be enabled in <kbd>Settings</kbd> > <kbd>Tools</kbd> > <kbd>Index MCP Server</kbd> > <kbd>Exposed Tools</kbd>.
+The plugin provides **53 MCP tools** organized by availability. Tools marked *(disabled by default)* can be enabled in <kbd>Settings</kbd> > <kbd>Tools</kbd> > <kbd>Index MCP Server</kbd> > <kbd>Exposed Tools</kbd>.
 
 ### Universal Tools
 
@@ -295,6 +295,7 @@ These tools work in all supported JetBrains IDEs.
 | `ide_restart` | Restart the IDE — the MCP server is down only while the IDE relaunches; poll `ide_index_status` until it answers, then continue. Call after `ide_install_plugin` *(disabled by default)* |
 | `ide_refactor_rename` | Preview with `dryRun`, or rename a symbol by `symbolId`/position (or a file) and update all references across the project (all languages; use `targetType` for explicit file mode) |
 | `ide_move_file` | Move a file to a new directory, applying language-aware reference/package updates when the IDE provides a semantic move backend |
+| `ide_move_member` | Preview with `dryRun`, or move a top-level/static declaration (function, class/type, const/property) to another file with the IDE's Move refactoring, rewriting every reference and import (Java static members, Kotlin top-level declarations, JS/TS module members) *(disabled by default)* |
 | `ide_reformat_code` | Reformat code using project code style with import optimization *(disabled by default)* |
 | `ide_optimize_imports` | Optimize imports without reformatting code *(disabled by default)* |
 | `ide_structural_search_replace` | Pattern-based code search and transformation using IntelliJ's Structural Search and Replace engine, optionally restricted to path globs via `paths` (Java, Kotlin) *(disabled by default)* |

@@ -456,6 +456,23 @@ Move a file to a new directory. Applies language-aware reference, import, and pa
 **Returns**: `{ success, affectedFiles: [paths], changesCount, message }`
 **Supports IDE undo** (Ctrl+Z).
 
+### ide_move_member (Java, Kotlin, JavaScript/TypeScript; disabled by default)
+Move a top-level or static declaration to another file with the IDE's Move refactoring; references and imports are rewritten.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `targetFile` | string | yes | Destination file (relative). Java: existing class file. Kotlin/JS/TS: created if missing; directory must exist |
+| `target` | object | conditional | Nested selector: `symbolId`, `position: {file, line, column}`, or `qualifiedName` + `language` |
+| `symbolId` | string | conditional | Exact symbol handle |
+| `file` / `line` / `column` | string / int / int | conditional | Position of the declaration or a reference to it |
+| `language` / `symbol` | string | conditional | Qualified-name selector |
+| `dryRun` | boolean | no | Preview only (default false) |
+| `project_path` | string | no | Project root path |
+
+Movable: Java `static` fields/methods/nested classes; Kotlin top-level declarations (K2 mode); JS/TS top-level module members. Other languages return an unsupported error.
+**Returns**: `{ success, affectedFiles, changesCount, message, warnings?, updatedSymbol, invalidatedSymbolId? }`
+**Returns with `dryRun: true`**: common preview shape; `plannedChange` is `{operation: "move_member", backend, from, to, createsFile}`.
+
 ### ide_refactor_safe_delete (Java, Kotlin)
 
 Delete a symbol or file, checking for usages first.

@@ -35,6 +35,7 @@ object ToolNames {
     const val REFACTOR_RENAME = "ide_refactor_rename"
     const val REFACTOR_SAFE_DELETE = "ide_refactor_safe_delete"
     const val REFACTOR_MOVE = "ide_move_file"
+    const val MOVE_MEMBER = "ide_move_member"
     const val REFORMAT_CODE = "ide_reformat_code"
     const val OPTIMIZE_IMPORTS = "ide_optimize_imports"
     const val CONVERT_JAVA_TO_KOTLIN = "ide_convert_java_to_kotlin"
@@ -107,6 +108,7 @@ object ToolNames {
         LINK_BUILD_SYSTEM,
         LIST_TESTS,
         REFACTOR_MOVE,
+        MOVE_MEMBER,
         OPEN_FILE,
         OPEN_PROJECT,
         OPEN_WORKSPACE,

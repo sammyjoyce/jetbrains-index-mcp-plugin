@@ -44,6 +44,7 @@ import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.refactoring.CreateFi
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.refactoring.EditMemberTool
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.refactoring.InsertMemberTool
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.refactoring.MoveFileTool
+import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.refactoring.MoveMemberTool
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.refactoring.OptimizeImportsTool
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.refactoring.ReformatCodeTool
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.refactoring.RenameSymbolTool
@@ -277,6 +278,7 @@ class ToolRegistry {
         // Refactoring tools (universal - uses platform APIs)
         register(RenameSymbolTool())
         register(MoveFileTool())
+        register(MoveMemberTool())
         register(ReformatCodeTool())
         register(OptimizeImportsTool())
 

@@ -1,6 +1,6 @@
 # MCP tool manifest — golden snapshot
 # Regenerate: ./gradlew test -Ptier=unit --tests "*ToolManifestContractUnitTest" -Dcontract.update=true
-# tools: 51
+# tools: 52
 
 ## ide_build_project
 description:
@@ -1960,6 +1960,128 @@ schema:
     [
       "file",
       "destination"
+    ],
+    "type": "object"
+  }
+
+## ide_move_member
+description:
+  Move a top-level or static declaration to another file with the IDE's Move refactoring; references and imports are rewritten.
+  Java: static members into an existing class file. Kotlin: top-level declarations into a .kt file. JS/TS: top-level module members. Kotlin/JS/TS create targetFile if missing. Other languages are unsupported.
+  Target via symbolId, language+symbol, file+line+column, or nested target. dryRun=true previews usages/conflicts/canApply without editing; apply reports conflicts as warnings.
+  
+  Example: {"file":"src/util.ts","line":3,"column":17,"targetFile":"src/strings.ts"}
+schema:
+  {
+    "properties":
+    {
+      "column":
+      {
+        "description": "1-based column number",
+        "type": "integer"
+      },
+      "dryRun":
+      {
+        "description": "Preview without modifying files. Default: false.",
+        "type": "boolean"
+      },
+      "file":
+      {
+        "description": "File containing the declaration; use with line and column.",
+        "type": "string"
+      },
+      "language":
+      {
+        "description": "Language of the symbol. Required when using 'symbol' parameter. Currently supported languages: Java, Kotlin, JavaScript, TypeScript.",
+        "enum":
+        [
+          "Java",
+          "Kotlin",
+          "JavaScript",
+          "TypeScript"
+        ],
+        "type": "string"
+      },
+      "line":
+      {
+        "description": "1-based line number",
+        "type": "integer"
+      },
+      "project_path":
+      {
+        "description": "Absolute project root; required with multiple open projects. For workspaces use the sub-project path.",
+        "type": "string"
+      },
+      "symbol":
+      {
+        "description": "Fully qualified symbol reference. Format: 'com.example.ClassName' or 'com.example.ClassName#memberName'. Omit generics parameters.",
+        "type": "string"
+      },
+      "symbolId":
+      {
+        "description": "Reusable across edits/rename; expires with session, project, inactivity or eviction. Non-canonical: unequal handles may identify the same symbol.",
+        "type": "string"
+      },
+      "target":
+      {
+        "description": "Choose symbolId, position, or qualifiedName+language. Mutually exclusive with flat selector parameters.",
+        "properties":
+        {
+          "language":
+          {
+            "description": "Language used to resolve qualifiedName.",
+            "type": "string"
+          },
+          "position":
+          {
+            "properties":
+            {
+              "column":
+              {
+                "description": "1-based column number",
+                "type": "integer"
+              },
+              "file":
+              {
+                "description": "Project-relative file path, or a dependency/library absolute path or jar:// URL previously returned by the plugin.",
+                "type": "string"
+              },
+              "line":
+              {
+                "description": "1-based line number",
+                "type": "integer"
+              }
+            },
+            "required":
+            [
+              "file",
+              "line",
+              "column"
+            ],
+            "type": "object"
+          },
+          "qualifiedName":
+          {
+            "description": "Language-qualified symbol reference, for example com.example.Foo#bar.",
+            "type": "string"
+          },
+          "symbolId":
+          {
+            "description": "Same lifetime and non-canonical identity as top-level symbolId.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "targetFile":
+      {
+        "description": "Destination file relative to project root; its directory must exist. REQUIRED.",
+        "type": "string"
+      }
+    },
+    "required":
+    [
+      "targetFile"
     ],
     "type": "object"
   }

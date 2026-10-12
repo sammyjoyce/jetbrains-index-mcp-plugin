@@ -177,7 +177,7 @@ class McpSettingsUnitTest : TestCase() {
         settings.setToolEnabled(ToolNames.IMPORT_MODULES, true)
 
         assertTrue(settings.isToolEnabled(ToolNames.IMPORT_MODULES))
-        assertEquals(9, settings.state.settingsSchemaVersion)
+        assertEquals(10, settings.state.settingsSchemaVersion)
     }
 
     fun testUpdateToolEnabledStatesPreservesHiddenDisabledTools() {
@@ -195,7 +195,7 @@ class McpSettingsUnitTest : TestCase() {
         assertFalse("Hidden disabled tool must stay disabled", settings.isToolEnabled(ToolNames.IMPORT_MODULES))
         assertFalse("Visible disabled checkbox must disable the tool", settings.isToolEnabled(ToolNames.INDEX_STATUS))
         assertTrue("Visible enabled checkbox must enable the tool", settings.isToolEnabled(ToolNames.RELOAD_PROJECT))
-        assertEquals(9, settings.state.settingsSchemaVersion)
+        assertEquals(10, settings.state.settingsSchemaVersion)
     }
 
     fun testMcpSettingsGetStateReturnsCurrentState() {
@@ -260,6 +260,18 @@ class McpSettingsUnitTest : TestCase() {
         assertFalse(
             "${ToolNames.SYMBOL_INFO} should be disabled after v8\u2192v9 migration",
             settings.isToolEnabled(ToolNames.SYMBOL_INFO)
+        )
+    }
+
+    fun testSchemaVersion9MigrationKeepsMoveMemberDisabled() {
+        val settings = McpSettings()
+        val disabled = (McpSettings.DEFAULT_DISABLED_TOOLS - ToolNames.MOVE_MEMBER).toMutableSet()
+
+        settings.loadState(McpSettings.State(disabledTools = disabled, settingsSchemaVersion = 9))
+
+        assertFalse(
+            "${ToolNames.MOVE_MEMBER} should be disabled after v9\u2192v10 migration",
+            settings.isToolEnabled(ToolNames.MOVE_MEMBER)
         )
     }
 
