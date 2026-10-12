@@ -45,7 +45,7 @@ internal object JavaMoveMemberBackend {
             ?: return fail("Class '${targetClass.name}' has no qualified name.")
 
         val processor = HeadlessMoveMembersProcessor(project, member, targetClassName)
-        return Result.success(MoveMemberPlan("java_move_static_members", member, processor, processor::collectConflicts))
+        return Result.success(MoveMemberPlan("java_move_static_members", member, processor, conflicts = processor::collectConflicts))
     }
 
     private fun primaryClass(file: PsiJavaFile): PsiClass? =

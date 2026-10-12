@@ -7,6 +7,7 @@ import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.models.RefactoringRe
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.tools.schema.SchemaBuilder
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.util.ProjectUtils
 import com.github.hechtcarmel.jetbrainsindexmcpplugin.util.PsiUtils
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.progress.EmptyProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -35,11 +36,13 @@ import kotlinx.serialization.json.put
 /**
  * A language backend's ready-to-run move: the IDE processor plus a non-mutating conflict probe.
  * [conflicts] runs on the EDT, like the processor's own `preprocessUsages`, after its usage search.
+ * [fixups] reads the usages on the EDT before the move and returns an edit to run in a write command after it.
  */
 internal class MoveMemberPlan(
     val backend: String,
     val element: PsiElement,
     val processor: BaseRefactoringProcessor,
+    val fixups: (Array<UsageInfo>) -> () -> Unit = { {} },
     val conflicts: (Array<UsageInfo>) -> List<String>
 )
 
@@ -156,9 +159,12 @@ class MoveMemberTool : AbstractRefactoringTool() {
             val fileDocumentManager = FileDocumentManager.getInstance()
             val unsavedBefore = fileDocumentManager.unsavedDocuments.toSet()
             try {
+                val fixup = plan.fixups(usages)
                 // Kotlin's retargetUsages reads the thread's progress indicator without a null check,
                 // and headless write actions install none (same quirk as MoveFileTool).
                 ProgressManager.getInstance().runProcess({ plan.processor.run() }, EmptyProgressIndicator())
+                PsiDocumentManager.getInstance(project).commitAllDocuments()
+                WriteCommandAction.writeCommandAction(project).withName("Move member: fix imports").run<Throwable>(fixup)
                 PsiDocumentManager.getInstance(project).commitAllDocuments()
                 fileDocumentManager.unsavedDocuments.filterNot { it in unsavedBefore }
                     .mapNotNullTo(affected) { doc -> fileDocumentManager.getFile(doc)?.let { getRelativePath(project, it) } }

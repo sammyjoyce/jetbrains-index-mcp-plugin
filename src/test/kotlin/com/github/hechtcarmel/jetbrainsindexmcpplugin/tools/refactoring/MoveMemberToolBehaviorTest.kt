@@ -100,6 +100,29 @@ class MoveMemberToolBehaviorTest : McpPlatformTestCase() {
         assertTrue(main, Regex("""import \{\s*keep\s*\} from ["']\./util["']""").containsMatchIn(main))
     }
 
+    fun testTypeScriptTypeAliasIsImportedTypeOnlyEverywhereAfterMove() = runBlocking {
+        Assume.assumeTrue("JavaScript plugin required", PluginDetectors.javaScript.isAvailable)
+        registerSourceRoot("mm-ts-typeonly")
+        writeProjectFile("mm-ts-typeonly/screen.ts", "export type Visit = { id: string };\n\nexport const screen: Visit = { id: \"s\" };\n")
+        writeProjectFile("mm-ts-typeonly/model.ts", "export function rel(): number {\n    return 1;\n}\n")
+        writeProjectFile(
+            "mm-ts-typeonly/card.tsx",
+            "import type { Visit } from \"./screen\";\nimport { rel } from \"./model\";\n\nexport const v: Visit = { id: String(rel()) };\n"
+        )
+
+        val result = MoveMemberTool().execute(project, request("mm-ts-typeonly/screen.ts", 1, 13, "mm-ts-typeonly/model.ts"))
+
+        assertToolSucceeded("TS type move into a file the importer already value-imports", result)
+        assertContains("mm-ts-typeonly/model.ts", "type Visit")
+        // A plain import of a type breaks verbatimModuleSyntax projects (TS1484) whenever the IDE misses that setting.
+        val card = text("mm-ts-typeonly/card.tsx")
+        assertTrue(card, Regex("""import \{[^}]*\btype Visit\b[^}]*\} from ["']\./model["']""").containsMatchIn(card))
+        assertTrue(card, Regex("""\brel\b""").containsMatchIn(card))
+        // The source file still uses the type, so the processor imports it back; that import must be type-only too.
+        val screen = text("mm-ts-typeonly/screen.ts")
+        assertTrue(screen, Regex("""import (type \{\s*Visit\s*\}|\{[^}]*\btype Visit\b[^}]*\}) from ["']\./model["']""").containsMatchIn(screen))
+    }
+
     fun testTypeScriptDryRunDoesNotCreateTheTargetFile() = runBlocking {
         Assume.assumeTrue("JavaScript plugin required", PluginDetectors.javaScript.isAvailable)
         registerSourceRoot("mm-ts-dry")
