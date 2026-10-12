@@ -6,7 +6,7 @@
 
 ### Added
 
-- **`ide_move_member`** — move a top-level or static declaration (function, class/type, const/property) to another file with the IDE's own Move refactoring, so every reference and import follows. Backends: Java static members (Move Static Members), Kotlin top-level declarations (K2 Move Declarations), and JavaScript/TypeScript module members (Move Module Members); other languages return an unsupported error. Accepts `symbolId`, `language`+`symbol`, `file`+`line`+`column` or a nested `target`, supports `dryRun` previews, and reports conflicts as `warnings`. Disabled by default.
+- **`ide_move_member`** — move a top-level or static declaration (function, class/type, const/property) to another file with the IDE's own Move refactoring, so every reference and import follows. Backends: Java static members (Move Static Members), Kotlin top-level declarations (K2 Move Declarations), and JavaScript/TypeScript module members (Move Module Members); other languages return an unsupported error. Accepts `symbolId`, `language`+`symbol`, `file`+`line`+`column` or a nested `target`, supports `dryRun` previews, and reports conflicts as `warnings`. Kotlin and JS/TS create the target file and any missing directories (new Kotlin directories become subpackages). Disabled by default.
 
 ## [5.20.2] - 2026-10-09
 

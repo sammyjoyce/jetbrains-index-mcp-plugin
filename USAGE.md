@@ -2240,14 +2240,14 @@ Move one top-level or static declaration to another file using the IDE's own Mov
 | Language | Movable declarations | Destination | IDE backend |
 |----------|---------------------|-------------|-------------|
 | Java | `static` fields, methods and nested classes | An existing `.java` file; the member moves into its top-level class | Move Static Members (`MoveMembersProcessor`) |
-| Kotlin (K2 mode) | Top-level functions, properties, classes, objects, type aliases | A `.kt` file, created in the target directory's package if missing | Move Declarations (`K2MoveDeclarationsRefactoringProcessor`) |
-| JavaScript / TypeScript | Top-level module members (functions, classes, consts, interfaces, types) | A JS/TS file, created if missing | Move Module Members (`ES6MoveModuleMembersProcessor`) |
+| Kotlin (K2 mode) | Top-level functions, properties, classes, objects, type aliases | A `.kt` file, created in the target directory's package if missing; new directories become subpackages | Move Declarations (`K2MoveDeclarationsRefactoringProcessor`) |
+| JavaScript / TypeScript | Top-level module members (functions, classes, consts, interfaces, types) | A JS/TS file, created (with missing directories) if needed | Move Module Members (`ES6MoveModuleMembersProcessor`) |
 
 Other languages return an error naming the language. Top-level Java classes are files: use `ide_move_file`.
 
 **Behavior:**
 - Select the declaration with `symbolId`, `language`+`symbol`, `file`+`line`+`column`, or a nested `target`.
-- The destination directory must already exist.
+- Kotlin and JS/TS create missing destination directories as part of the move (Kotlin maps each new directory to a subpackage of the nearest existing directory's package). A dry run reports them in `plannedChange.createsDirectory` and creates nothing. Java targets must be existing class files.
 - Visibility is widened only where a usage needs it (Java: escalate visibility; JS/TS: add `export`), matching the IDE dialog defaults.
 - `dryRun: true` runs the processor's usage search and conflict analysis and returns the shared refactoring preview without writing anything (it does not create the target file).
 - Apply proceeds through conflicts and reports them in `warnings`; read-only files in scope abort before any edit.
@@ -2257,7 +2257,7 @@ Other languages return an error naming the language. Top-level Java classes are 
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `targetFile` | string | Yes | Destination file path relative to project root |
+| `targetFile` | string | Yes | Destination file path relative to project root. Kotlin/JS/TS create it and any missing directories |
 | `symbolId` / `target` | string / object | Conditional | Exact symbol selector |
 | `file`, `line`, `column` | string, int, int | Conditional | Position of the declaration (or a reference to it) |
 | `language`, `symbol` | string | Conditional | Qualified-name selector |
@@ -2296,7 +2296,7 @@ Other languages return an error naming the language. Top-level Java classes are 
 **Example dry-run `plannedChange`:**
 
 ```json
-{"operation": "move_member", "backend": "kotlin_k2_move_declarations", "from": "src/a/Util.kt", "to": "src/b/Strings.kt", "createsFile": true}
+{"operation": "move_member", "backend": "kotlin_k2_move_declarations", "from": "src/a/Util.kt", "to": "src/b/text/Strings.kt", "createsFile": true, "createsDirectory": "text"}
 ```
 
 ---

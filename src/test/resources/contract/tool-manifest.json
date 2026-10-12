@@ -1967,7 +1967,7 @@ schema:
 ## ide_move_member
 description:
   Move a top-level or static declaration to another file with the IDE's Move refactoring; references and imports are rewritten.
-  Java: static members into an existing class file. Kotlin: top-level declarations into a .kt file. JS/TS: top-level module members. Kotlin/JS/TS create targetFile if missing. Other languages are unsupported.
+  Java: static members into an existing class file. Kotlin: top-level declarations into a .kt file. JS/TS: top-level module members. Kotlin/JS/TS create targetFile and missing directories. Other languages are unsupported.
   Target via symbolId, language+symbol, file+line+column, or nested target. dryRun=true previews usages/conflicts/canApply without editing; apply reports conflicts as warnings.
   
   Example: {"file":"src/util.ts","line":3,"column":17,"targetFile":"src/strings.ts"}
@@ -2075,7 +2075,7 @@ schema:
       },
       "targetFile":
       {
-        "description": "Destination file relative to project root; its directory must exist. REQUIRED.",
+        "description": "Destination file relative to project root. Kotlin/JS/TS create it and missing directories. REQUIRED.",
         "type": "string"
       }
     },

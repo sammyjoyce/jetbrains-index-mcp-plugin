@@ -30,11 +30,11 @@ class KotlinMoveMemberBehaviorTest : McpPlatformTestCase() {
 
     private fun text(path: String): String = Files.readString(Path.of(project.basePath!!, path))
 
-    private fun request(dryRun: Boolean = false) = buildJsonObject {
+    private fun request(dryRun: Boolean = false, targetFile: String = "kmm-src/b/Strings.kt") = buildJsonObject {
         put("file", "kmm-src/a/Util.kt")
         put("line", 3)
         put("column", 5)
-        put("targetFile", "kmm-src/b/Strings.kt")
+        put("targetFile", targetFile)
         if (dryRun) put("dryRun", true)
     }
 
@@ -61,5 +61,21 @@ class KotlinMoveMemberBehaviorTest : McpPlatformTestCase() {
         assertTrue(preview.toString(), preview.getValue("usageCount").jsonPrimitive.int >= 1)
         assertFalse(Files.exists(Path.of(project.basePath!!, "kmm-src/b/Strings.kt")))
         assertTrue(text("kmm-src/a/Util.kt").contains("fun ping"))
+    }
+
+    fun testMoveIntoMissingDirectoryCreatesItAsASubpackage() = runBlocking {
+        val preview = MoveMemberTool().execute(project, request(dryRun = true, targetFile = "kmm-src/b/net/http/Ping.kt"))
+        assertToolSucceeded("Kotlin dry run into a new directory", preview)
+        assertFalse(Files.exists(Path.of(project.basePath!!, "kmm-src/b/net")))
+
+        val result = MoveMemberTool().execute(project, request(targetFile = "kmm-src/b/net/http/Ping.kt"))
+
+        assertToolSucceeded("Kotlin move into a new directory", result)
+        val moved = text("kmm-src/b/net/http/Ping.kt")
+        assertTrue(moved, moved.contains("package b.net.http"))
+        assertTrue(moved, moved.contains("fun ping()"))
+        val caller = text("kmm-src/c/Caller.kt")
+        assertTrue(caller, caller.contains("import b.net.http.ping"))
+        assertFalse(caller, caller.contains("import a.ping"))
     }
 }

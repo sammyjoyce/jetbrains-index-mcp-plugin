@@ -61,7 +61,7 @@ class MoveMemberTool : AbstractRefactoringTool() {
 
     override val description = """
         Move a top-level or static declaration to another file with the IDE's Move refactoring; references and imports are rewritten.
-        Java: static members into an existing class file. Kotlin: top-level declarations into a .kt file. JS/TS: top-level module members. Kotlin/JS/TS create targetFile if missing. Other languages are unsupported.
+        Java: static members into an existing class file. Kotlin: top-level declarations into a .kt file. JS/TS: top-level module members. Kotlin/JS/TS create targetFile and missing directories. Other languages are unsupported.
         Target via symbolId, language+symbol, file+line+column, or nested target. dryRun=true previews usages/conflicts/canApply without editing; apply reports conflicts as warnings.
 
         Example: {"file":"src/util.ts","line":3,"column":17,"targetFile":"src/strings.ts"}
@@ -76,7 +76,7 @@ class MoveMemberTool : AbstractRefactoringTool() {
         .lineAndColumn(required = false)
         .stringProperty(
             TARGET_FILE,
-            "Destination file relative to project root; its directory must exist. REQUIRED.",
+            "Destination file relative to project root. Kotlin/JS/TS create it and missing directories. REQUIRED.",
             required = true
         )
         .booleanProperty(ParamNames.DRY_RUN, "Preview without modifying files. Default: false.")
@@ -91,17 +91,17 @@ class MoveMemberTool : AbstractRefactoringTool() {
         requireSmartMode(project)
         if (!dryRun) syncProjectForRefactoring(project)
 
-        // ponytail: the destination directory must already exist; create it on apply if layout moves need new dirs.
-        val parentPath = File(targetPath).parent
-        val targetDir = (if (parentPath == null) project.basePath?.let(LocalFileSystem.getInstance()::findFileByPath) else resolveFile(project, parentPath))
-            ?.takeIf { it.isDirectory }
-            ?: return createErrorResult("Destination directory for '$targetPath' does not exist.")
+        // Missing destination directories are created by the IDE refactoring itself, inside its
+        // command, so a dry run or an aborted move leaves no empty directories behind.
+        val (targetDir, missingDirs) = resolveDestinationDirectory(project, targetPath).getOrElse {
+            return createErrorResult(it.message ?: "Invalid $TARGET_FILE: $targetPath")
+        }
         val targetName = File(targetPath).name
-        val existingTarget = targetDir.findChild(targetName)
+        val existingTarget = if (missingDirs.isEmpty()) targetDir.findChild(targetName) else null
         if (!dryRun) existingTarget?.let { ensureWritable(it)?.let { error -> return error } }
         val symbolId = optionalStringArg(arguments, ParamNames.SYMBOL_ID)
 
-        val planned = suspendingReadAction { plan(project, arguments, symbolId, targetDir, targetName, existingTarget) }
+        val planned = suspendingReadAction { plan(project, arguments, symbolId, targetDir, missingDirs, targetName, existingTarget) }
         val plan = planned.getOrElse { return createErrorResult(it.message ?: ErrorMessages.COULD_NOT_RESOLVE_SYMBOL) }
 
         val (sourceFile, memberName, memberClass) = suspendingReadAction {
@@ -117,9 +117,9 @@ class MoveMemberTool : AbstractRefactoringTool() {
         val readOnly = suspendingReadAction { RefactoringScopeGuard.readOnlyFilesIn(project, usages) }
         val sourcePath = suspendingReadAction { getRelativePath(project, sourceFile) }
         val targetRelative = suspendingReadAction {
-            existingTarget?.let { getRelativePath(project, it) } ?: ProjectUtils.getToolFilePath(project, targetDir).let {
-                if (it.isEmpty() || it == ".") targetName else "$it/$targetName"
-            }
+            existingTarget?.let { getRelativePath(project, it) }
+                ?: (listOf(ProjectUtils.getToolFilePath(project, targetDir)).filterNot { it.isEmpty() || it == "." } + missingDirs + targetName)
+                    .joinToString("/")
         }
 
         if (dryRun) {
@@ -137,6 +137,7 @@ class MoveMemberTool : AbstractRefactoringTool() {
                         put("from", sourcePath)
                         put("to", targetRelative)
                         put("createsFile", existingTarget == null)
+                        if (missingDirs.isNotEmpty()) put("createsDirectory", (missingDirs).joinToString("/"))
                     },
                     affectedFiles = affected,
                     usageCount = usages.size,
@@ -169,7 +170,7 @@ class MoveMemberTool : AbstractRefactoringTool() {
         error?.let { return createErrorResult("Move failed: $it", ToolNames.DIAGNOSTICS) }
         if (notSaved.isNotEmpty()) return createErrorResult(changesNotSavedMessage(notSaved))
 
-        val movedFile = targetDir.findChild(targetName)
+        val movedFile = targetDir.findFileByRelativePath((missingDirs + targetName).joinToString("/"))
         val moved = movedFile?.let { file ->
             suspendingReadAction {
                 PsiManager.getInstance(project).findFile(file)?.let { findDeclaration(it, memberName, memberClass) }
@@ -200,6 +201,7 @@ class MoveMemberTool : AbstractRefactoringTool() {
         arguments: JsonObject,
         symbolId: String?,
         targetDir: VirtualFile,
+        missingDirs: List<String>,
         targetName: String,
         existingTarget: VirtualFile?
     ): Result<MoveMemberPlan> {
@@ -226,10 +228,43 @@ class MoveMemberTool : AbstractRefactoringTool() {
         val targetPsiFile = existingTarget?.let(psiManager::findFile)
         return when (language.id) {
             "JAVA" -> JavaMoveMemberBackend.plan(project, element, targetPsiFile)
-            "kotlin" -> KotlinMoveMemberBackend.plan(project, element, psiManager.findDirectory(targetDir)!!, targetName, targetPsiFile)
-            else -> JsMoveMemberBackend.plan(element, "${targetDir.path}/$targetName")
+            "kotlin" -> KotlinMoveMemberBackend.plan(
+                project, element, psiManager.findDirectory(targetDir)!!, missingDirs, targetName, targetPsiFile
+            )
+            else -> JsMoveMemberBackend.plan(element, (listOf(targetDir.path) + missingDirs + targetName).joinToString("/"))
         }
     }
+
+    /**
+     * Splits [targetPath]'s directory into its nearest existing project directory and the
+     * directory names below it that do not exist yet.
+     */
+    private fun resolveDestinationDirectory(project: Project, targetPath: String): Result<Pair<VirtualFile, List<String>>> {
+        val missing = ArrayDeque<String>()
+        var dir: File? = File(targetPath).parentFile
+        while (dir != null) {
+            val existing = resolveFile(project, dir.path)
+            if (existing != null) {
+                if (!existing.isDirectory) return Result.failure(IllegalArgumentException("'${dir.path}' in $TARGET_FILE is a file, not a directory."))
+                return checkedMissing(existing, missing)
+            }
+            missing.addFirst(dir.name)
+            dir = dir.parentFile
+        }
+        if (File(targetPath).isAbsolute) {
+            return Result.failure(IllegalArgumentException("$TARGET_FILE '$targetPath' is outside the project."))
+        }
+        val base = project.basePath?.let(LocalFileSystem.getInstance()::findFileByPath)
+            ?: return Result.failure(IllegalArgumentException("Project has no base directory."))
+        return checkedMissing(base, missing)
+    }
+
+    private fun checkedMissing(dir: VirtualFile, missing: List<String>): Result<Pair<VirtualFile, List<String>>> =
+        if (missing.any { it == "." || it == ".." || it.isEmpty() }) {
+            Result.failure(IllegalArgumentException("$TARGET_FILE must not navigate with '.' or '..' through directories that do not exist."))
+        } else {
+            Result.success(dir to missing)
+        }
 
     /** The moved declaration is a new PSI element; find it by name and PSI type in the target file. */
     private fun findDeclaration(file: PsiFile, name: String, type: Class<*>): PsiElement? =

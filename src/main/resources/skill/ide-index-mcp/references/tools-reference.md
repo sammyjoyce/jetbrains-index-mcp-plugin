@@ -461,7 +461,7 @@ Move a top-level or static declaration to another file with the IDE's Move refac
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `targetFile` | string | yes | Destination file (relative). Java: existing class file. Kotlin/JS/TS: created if missing; directory must exist |
+| `targetFile` | string | yes | Destination file (relative). Java: existing class file. Kotlin/JS/TS: created if missing, along with missing directories |
 | `target` | object | conditional | Nested selector: `symbolId`, `position: {file, line, column}`, or `qualifiedName` + `language` |
 | `symbolId` | string | conditional | Exact symbol handle |
 | `file` / `line` / `column` | string / int / int | conditional | Position of the declaration or a reference to it |
@@ -471,7 +471,7 @@ Move a top-level or static declaration to another file with the IDE's Move refac
 
 Movable: Java `static` fields/methods/nested classes; Kotlin top-level declarations (K2 mode); JS/TS top-level module members. Other languages return an unsupported error.
 **Returns**: `{ success, affectedFiles, changesCount, message, warnings?, updatedSymbol, invalidatedSymbolId? }`
-**Returns with `dryRun: true`**: common preview shape; `plannedChange` is `{operation: "move_member", backend, from, to, createsFile}`.
+**Returns with `dryRun: true`**: common preview shape; `plannedChange` is `{operation: "move_member", backend, from, to, createsFile, createsDirectory?}`.
 
 ### ide_refactor_safe_delete (Java, Kotlin)
 

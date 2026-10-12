@@ -116,6 +116,37 @@ class MoveMemberToolBehaviorTest : McpPlatformTestCase() {
         assertContains("mm-ts-dry/util.ts", "twice")
     }
 
+    fun testTypeScriptMoveCreatesMissingDirectoriesAndRelativeImportsFollow() = runBlocking {
+        Assume.assumeTrue("JavaScript plugin required", PluginDetectors.javaScript.isAvailable)
+        registerSourceRoot("mm-ts-dir")
+        writeProjectFile("mm-ts-dir/util.ts", "export function twice(x: number): number {\n    return x * 2;\n}\n")
+        writeProjectFile("mm-ts-dir/main.ts", "import { twice } from \"./util\";\n\nconsole.log(twice(1));\n")
+
+        val preview = MoveMemberTool().execute(project, request("mm-ts-dir/util.ts", 1, 17, "mm-ts-dir/lib/math/twice.ts", dryRun = true))
+        assertToolSucceeded("TS dry run into a new directory", preview)
+        assertEquals("lib/math", Json.parseToJsonElement(toolText(preview)).jsonObject
+            .getValue("plannedChange").jsonObject.getValue("createsDirectory").jsonPrimitive.content)
+        assertProjectFileAbsent("mm-ts-dir/lib")
+
+        val result = MoveMemberTool().execute(project, request("mm-ts-dir/util.ts", 1, 17, "mm-ts-dir/lib/math/twice.ts"))
+
+        assertToolSucceeded("TS move into a new directory", result)
+        assertContains("mm-ts-dir/lib/math/twice.ts", "function twice(x: number)")
+        assertLacks("mm-ts-dir/util.ts", "twice")
+        val main = text("mm-ts-dir/main.ts")
+        assertTrue(main, Regex("""import \{\s*twice\s*\} from ["']\./lib/math/twice["']""").containsMatchIn(main))
+    }
+
+    fun testJavaMoveIntoMissingDirectoryIsRejectedWithoutCreatingIt() = runBlocking {
+        writeJavaFixture()
+
+        val result = MoveMemberTool().execute(project, request("mm-src/a/Util.java", 4, 23, "mm-src/z/New.java"))
+
+        assertToolFailed("Java needs an existing target class", result)
+        assertTrue(toolText(result), toolText(result).contains("existing .java file"))
+        assertProjectFileAbsent("mm-src/z")
+    }
+
     fun testLanguageWithoutBackendReturnsUnsupported() = runBlocking {
         writeProjectFile("mm-txt/notes.txt", "greeting hello\n")
 

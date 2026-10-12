@@ -28,6 +28,7 @@ internal object KotlinMoveMemberBackend {
         project: Project,
         element: PsiElement,
         targetDirectory: PsiDirectory,
+        missingDirs: List<String>,
         targetFileName: String,
         targetFile: PsiFile?
     ): Result<MoveMemberPlan> {
@@ -40,6 +41,9 @@ internal object KotlinMoveMemberBackend {
         if (!targetFileName.endsWith(".kt")) return fail("Kotlin declarations move into a .kt file; got '$targetFileName'.")
         if (targetFile != null && !ktFile.isInstance(targetFile)) return fail("'$targetFileName' is not a Kotlin file.")
         if (targetFile == element.containingFile) return fail("'$name' is already declared in '$targetFileName'.")
+        missingDirs.firstOrNull { dir -> !dir.first().isJavaIdentifierStart() || !dir.all(Char::isJavaIdentifierPart) }?.let {
+            return fail("New directory '$it' would become a Kotlin package segment, but it is not a valid identifier.")
+        }
 
         val loader = MoveHandlerDelegate.EP_NAME.extensionList
             .firstOrNull { it.javaClass.name == "$MOVE_PACKAGE.K2MoveHandler" }
@@ -47,9 +51,11 @@ internal object KotlinMoveMemberBackend {
             ?: return fail("Kotlin's K2 move refactoring is unavailable in this IDE (K1 mode is not supported).")
 
         val fqNameClass = Class.forName("org.jetbrains.kotlin.name.FqName", true, loader)
+        // A new directory below targetDirectory becomes a subpackage of targetDirectory's package.
+        val basePackage = ProjectRootManager.getInstance(project).fileIndex.getPackageNameByDirectory(targetDirectory.virtualFile).orEmpty()
         val packageFqName = targetFile?.javaClass?.getMethod("getPackageFqName")?.invoke(targetFile)
             ?: fqNameClass.getConstructor(String::class.java).newInstance(
-                ProjectRootManager.getInstance(project).fileIndex.getPackageNameByDirectory(targetDirectory.virtualFile).orEmpty()
+                (listOf(basePackage).filter { it.isNotEmpty() } + missingDirs).joinToString(".")
             )
 
         val companion = Class.forName("$MOVE_PACKAGE.descriptor.K2MoveOperationDescriptor", true, loader)
@@ -60,7 +66,9 @@ internal object KotlinMoveMemberBackend {
             fqNameClass, bool, bool, bool, bool, bool, bool, MoveCallback::class.java
         ).let { invokeUnwrapped(it, companion, project, listOf(element), targetDirectory, targetFileName, packageFqName,
             /* searchForText */ false, /* searchReferences */ true, /* searchInComments */ false,
-            /* mppDeclarations */ false, /* dirStructureMatchesPkg */ false, /* isMoveToExplicitPackage */ false, null) }!!
+            /* mppDeclarations */ false,
+            // true makes K2 create the package's missing directories under targetDirectory when it applies.
+            /* dirStructureMatchesPkg */ missingDirs.isNotEmpty(), /* isMoveToExplicitPackage */ false, null) }!!
         val processor = descriptor.javaClass.getMethod("refactoringProcessor").invoke(descriptor) as BaseRefactoringProcessor
 
         return Result.success(MoveMemberPlan("kotlin_k2_move_declarations", element, processor) { usages ->
