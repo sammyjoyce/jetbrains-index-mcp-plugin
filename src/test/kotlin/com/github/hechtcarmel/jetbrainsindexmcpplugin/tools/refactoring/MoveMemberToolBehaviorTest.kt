@@ -123,6 +123,38 @@ class MoveMemberToolBehaviorTest : McpPlatformTestCase() {
         assertTrue(screen, Regex("""import (type \{\s*Visit\s*\}|\{[^}]*\btype Visit\b[^}]*\}) from ["']\./model["']""").containsMatchIn(screen))
     }
 
+    // The atom regression: tsconfig paths make the IDE prefer `@/...`, but the importer used `./...`; the removed
+    // import left a doubled blank line; appending dropped the target's final newline; the type import lost `type`.
+    fun testTypeScriptTypeMoveKeepsImporterPathStyleBlankLinesAndFinalNewline() = runBlocking {
+        Assume.assumeTrue("JavaScript plugin required", PluginDetectors.javaScript.isAvailable)
+        registerSourceRoot("mm-ts-style")
+        writeProjectFile(
+            "mm-ts-style/tsconfig.json",
+            "{ \"compilerOptions\": { \"verbatimModuleSyntax\": true, \"baseUrl\": \".\", \"paths\": { \"@/*\": [\"./src/*\"] } } }\n"
+        )
+        writeProjectFile("mm-ts-style/src/lib/fmt.ts", "export function fmt(x: string): string {\n  return x;\n}\n")
+        writeProjectFile(
+            "mm-ts-style/src/today/screen.ts",
+            "export type Visit = { id: string };\n\nexport const screen: Visit = { id: \"s\" };\n"
+        )
+        writeProjectFile("mm-ts-style/src/today/model.ts", "export function rel(): number {\n  return 1;\n}\n")
+        writeProjectFile(
+            "mm-ts-style/src/today/agenda.ts",
+            "import { fmt } from \"@/lib/fmt\";\n\nimport type { Visit } from \"./screen\";\n\nexport const v: Visit = { id: fmt(\"a\") };\n"
+        )
+
+        val result = MoveMemberTool().execute(project, request("mm-ts-style/src/today/screen.ts", 1, 13, "mm-ts-style/src/today/model.ts"))
+
+        assertToolSucceeded("TS type move", result)
+        val agenda = text("mm-ts-style/src/today/agenda.ts")
+        assertTrue(agenda, Regex("""import type \{\s*Visit\s*\} from "\./model";""").containsMatchIn(agenda))
+        assertFalse("Doubled blank line left in the import header:\n$agenda", agenda.contains("\n\n\n"))
+        assertTrue("Importer lost its final newline", agenda.endsWith("\n"))
+        val model = text("mm-ts-style/src/today/model.ts")
+        assertTrue(model, model.contains("type Visit"))
+        assertTrue("Target lost its final newline:\n$model", model.endsWith("\n"))
+    }
+
     fun testTypeScriptDryRunDoesNotCreateTheTargetFile() = runBlocking {
         Assume.assumeTrue("JavaScript plugin required", PluginDetectors.javaScript.isAvailable)
         registerSourceRoot("mm-ts-dry")
